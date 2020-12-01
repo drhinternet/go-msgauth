@@ -375,13 +375,13 @@ func SignByteBuffer(in io.Reader, options *SignOptions) ([]byte, error) {
 	hash := options.Hash
 	var hashAlgo string
 	switch options.Hash {
+	case crypto.SHA1:
+		hashAlgo = "sha1"
 	case 0: // sha256 is the default
 		hash = crypto.SHA256
 		fallthrough
 	case crypto.SHA256:
 		hashAlgo = "sha256"
-	case crypto.SHA1:
-		return nil, fmt.Errorf("dkim: hash algorithm too weak: sha1")
 	default:
 		return nil, fmt.Errorf("dkim: unsupported hash algorithm")
 	}
