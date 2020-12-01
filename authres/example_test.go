@@ -3,7 +3,7 @@ package authres_test
 import (
 	"log"
 
-	"github.com/emersion/go-msgauth/authres"
+	"github.com/drhinternet/go-msgauth/authres"
 )
 
 func Example() {

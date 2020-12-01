@@ -4,7 +4,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/emersion/go-msgauth/dmarc"
+	"github.com/drhinternet/go-msgauth/dmarc"
 )
 
 func main() {
