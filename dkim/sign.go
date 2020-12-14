@@ -88,6 +88,8 @@ type Signer struct {
 // NewSigner creates a new signer. It returns an error if SignOptions is
 // invalid.
 func NewSigner(options *SignOptions) (*Signer, error) {
+	// First duplicated code block -- source -- start
+
 	if options == nil {
 		return nil, fmt.Errorf("dkim: no options specified")
 	}
@@ -154,6 +156,8 @@ func NewSigner(options *SignOptions) (*Signer, error) {
 		}
 	}
 
+	// First duplicated code block -- source -- end
+
 	done := make(chan error, 1)
 	pr, pw := io.Pipe()
 
@@ -190,6 +194,8 @@ func NewSigner(options *SignOptions) (*Signer, error) {
 			return
 		}
 		bodyHashed := hasher.Sum(nil)
+
+		// Second duplicated code block -- source -- start
 
 		params := map[string]string{
 			"v":  "1",
@@ -229,6 +235,8 @@ func NewSigner(options *SignOptions) (*Signer, error) {
 		if !options.Expiration.IsZero() {
 			params["x"] = formatTime(options.Expiration)
 		}
+
+		// Second duplicated code block -- source -- end
 
 		// Hash and sign headers
 		hasher.Reset()
@@ -333,6 +341,8 @@ func Sign(w io.Writer, r io.Reader, options *SignOptions) error {
 }
 
 func SignByteBuffer(in io.Reader, options *SignOptions) ([]byte, error) {
+	// First duplicated code block -- duplication -- start
+
 	if options == nil {
 		return nil, fmt.Errorf("dkim: no options specified")
 	}
@@ -399,9 +409,11 @@ func SignByteBuffer(in io.Reader, options *SignOptions) ([]byte, error) {
 		}
 	}
 
+	// First duplicated code block -- duplication -- end
+
 	// Read header
-	inReader := bufio.NewReader(in)
-	header, err := readHeader(inReader)
+	br := bufio.NewReader(in)
+	h, err := readHeader(br)
 	if err != nil {
 		return nil, err
 	}
@@ -409,13 +421,15 @@ func SignByteBuffer(in io.Reader, options *SignOptions) ([]byte, error) {
 	// Hash body
 	hasher := hash.New()
 	can := canonicalizers[bodyCan].CanonicalizeBody(hasher)
-	if _, err := io.Copy(can, inReader); err != nil {
+	if _, err := io.Copy(can, br); err != nil {
 		return nil, err
 	}
 	if err := can.Close(); err != nil {
 		return nil, err
 	}
 	bodyHashed := hasher.Sum(nil)
+
+	// Second duplicated code block -- duplication -- start
 
 	params := map[string]string{
 		"v":  "1",
@@ -433,7 +447,7 @@ func SignByteBuffer(in io.Reader, options *SignOptions) ([]byte, error) {
 	if options.HeaderKeys != nil {
 		headerKeys = options.HeaderKeys
 	} else {
-		for _, kv := range header {
+		for _, kv := range h {
 			k, _ := parseHeaderField(kv)
 			headerKeys = append(headerKeys, k)
 		}
@@ -456,9 +470,11 @@ func SignByteBuffer(in io.Reader, options *SignOptions) ([]byte, error) {
 		params["x"] = formatTime(options.Expiration)
 	}
 
+	// Second duplicated code block -- duplication -- end
+
 	// Hash and sign headers
 	hasher.Reset()
-	picker := newHeaderPicker(header)
+	picker := newHeaderPicker(h)
 	for _, k := range headerKeys {
 		kv := picker.Pick(k)
 		if kv == "" {
