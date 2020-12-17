@@ -32,7 +32,7 @@ type crlfFixer struct {
 }
 
 func (cf *crlfFixer) Fix(b []byte) []byte {
-	res := make([]byte, 0, len(b))
+	res := make([]byte, 0, 4*len(b)/3)
 	for _, ch := range b {
 		prevCR := cf.cr
 		cf.cr = false
@@ -63,6 +63,11 @@ type simpleBodyCanonicalizer struct {
 
 func (c *simpleBodyCanonicalizer) Write(b []byte) (int, error) {
 	written := len(b)
+
+	if c.crlfBuf == nil {
+		c.crlfBuf = make([]byte, 0, 4*len(b)/3)
+	}
+
 	b = append(c.crlfBuf, b...)
 
 	b = c.crlfFixer.Fix(b)
@@ -137,6 +142,10 @@ type relaxedBodyCanonicalizer struct {
 
 func (c *relaxedBodyCanonicalizer) Write(b []byte) (int, error) {
 	written := len(b)
+
+	if c.crlfBuf == nil {
+		c.crlfBuf = make([]byte, 0, 4*len(b)/3)
+	}
 
 	b = c.crlfFixer.Fix(b)
 
