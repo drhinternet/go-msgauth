@@ -61,6 +61,9 @@ type SignOptions struct {
 	// See RFC 6376 section 5.4.1 for recommended header fields.
 	HeaderKeys []string
 
+	// A list of header fields to ignore when generating the signature.
+	IgnoreHeaderKeys []string
+
 	// The expiration time. A zero value means no expiration.
 	Expiration time.Time
 
@@ -210,11 +213,21 @@ func NewSigner(options *SignOptions) (*Signer, error) {
 		}
 
 		var headerKeys []string
+		ignoreHeaderKeys := map[string]bool{}
 		if options.HeaderKeys != nil {
 			headerKeys = options.HeaderKeys
 		} else {
+			for _, k := range options.IgnoreHeaderKeys {
+				ignoreHeaderKeys[strings.ToLower(k)] = true
+			}
+
 			for _, kv := range h {
 				k, _ := parseHeaderField(kv)
+
+				if ignoreHeaderKeys[strings.ToLower(k)] {
+					continue
+				}
+
 				headerKeys = append(headerKeys, k)
 			}
 		}
@@ -444,11 +457,21 @@ func SignByteBuffer(in io.Reader, options *SignOptions) ([]byte, error) {
 	}
 
 	var headerKeys []string
+	ignoreHeaderKeys := map[string]bool{}
 	if options.HeaderKeys != nil {
 		headerKeys = options.HeaderKeys
 	} else {
+		for _, k := range options.IgnoreHeaderKeys {
+			ignoreHeaderKeys[strings.ToLower(k)] = true
+		}
+
 		for _, kv := range h {
 			k, _ := parseHeaderField(kv)
+
+			if ignoreHeaderKeys[strings.ToLower(k)] {
+				continue
+			}
+
 			headerKeys = append(headerKeys, k)
 		}
 	}
