@@ -22,9 +22,7 @@ func readHeader(r *bufio.Reader) (header, error) {
 	for {
 		l, err := tr.ReadLine()
 
-		if errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return h, fmt.Errorf("failed to read header: %v", err)
 		}
 
@@ -35,6 +33,10 @@ func readHeader(r *bufio.Reader) (header, error) {
 			h[len(h)-1] += l + crlf
 		} else {
 			h = append(h, l+crlf)
+		}
+
+		if errors.Is(err, io.EOF) {
+			break
 		}
 	}
 
