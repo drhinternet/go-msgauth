@@ -64,6 +64,9 @@ type SignOptions struct {
 	// A list of header fields to ignore when generating the signature.
 	IgnoreHeaderKeys []string
 
+	// A list of header fields to always add when generating the signature.
+	ExtraHeaderKeys []string
+
 	// The expiration time. A zero value means no expiration.
 	Expiration time.Time
 
@@ -229,6 +232,9 @@ func NewSigner(options *SignOptions) (*Signer, error) {
 				}
 
 				headerKeys = append(headerKeys, k)
+			}
+			for _, extraHeaderKey := range options.ExtraHeaderKeys {
+				headerKeys = append(headerKeys, extraHeaderKey)
 			}
 		}
 		params["h"] = formatTagList(headerKeys)
