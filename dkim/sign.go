@@ -480,6 +480,9 @@ func SignByteBuffer(in io.Reader, options *SignOptions) ([]byte, error) {
 
 			headerKeys = append(headerKeys, k)
 		}
+		for _, extraHeaderKey := range options.ExtraHeaderKeys {
+			headerKeys = append(headerKeys, extraHeaderKey)
+		}
 	}
 	params["h"] = formatTagList(headerKeys)
 
