@@ -132,50 +132,111 @@ func (c *relaxedCanonicalizer) CanonicalizeHeader(s string) string {
 	return k + ":" + v + crlf
 }
 
+// relaxedBodyBufferSize is how much canonical output is collected before it is
+// written to the underlying writer. The buffer is allocated with some slack
+// beyond that so that the content that crosses the threshold usually fits
+// without growing the buffer.
+const (
+	relaxedBodyBufferSize  = 16 * 1024
+	relaxedBodyBufferSlack = 1024
+)
+
+// isRelaxedBodySpecial marks the bytes that the relaxed body canonicalizer
+// handles individually; every other byte is copied through unchanged.
+var isRelaxedBodySpecial = [256]bool{' ': true, '\t': true, '\r': true, '\n': true}
+
 type relaxedBodyCanonicalizer struct {
-	w         io.Writer
-	crlfBuf   []byte
-	wspBuf    []byte
-	written   bool
-	crlfFixer crlfFixer
+	w   io.Writer
+	out []byte
+
+	// pendingLineBreaks holds line break bytes (with any lone LF fixed to
+	// CRLF) that are only written once more content follows them, which
+	// drops empty lines at the end of the body.
+	pendingLineBreaks []byte
+
+	// pendingWSP is set when whitespace has been seen that will be written as
+	// a single space if more content follows it on the same line.
+	pendingWSP bool
+
+	prevCR  bool
+	written bool
 }
 
 func (c *relaxedBodyCanonicalizer) Write(b []byte) (int, error) {
-	written := len(b)
-
-	if c.crlfBuf == nil {
-		c.crlfBuf = make([]byte, 0, 4*len(b)/3)
+	if c.out == nil {
+		size := len(b) + len(b)/8 + 64
+		if size > relaxedBodyBufferSize+relaxedBodyBufferSlack {
+			size = relaxedBodyBufferSize + relaxedBodyBufferSlack
+		}
+		c.out = make([]byte, 0, size)
 	}
 
-	b = c.crlfFixer.Fix(b)
+	for i := 0; i < len(b); {
+		switch b[i] {
+		case ' ', '\t':
+			c.pendingWSP = true
+			c.prevCR = false
+			i++
 
-	canonical := make([]byte, 0, len(b))
-	for _, ch := range b {
-		if ch == ' ' || ch == '\t' {
-			c.wspBuf = append(c.wspBuf, ch)
-		} else if ch == '\r' || ch == '\n' {
-			c.wspBuf = nil
-			c.crlfBuf = append(c.crlfBuf, ch)
-		} else {
-			if len(c.crlfBuf) > 0 {
-				canonical = append(canonical, c.crlfBuf...)
-				c.crlfBuf = nil
+		case '\r':
+			c.pendingWSP = false
+			c.pendingLineBreaks = append(c.pendingLineBreaks, '\r')
+			c.prevCR = true
+			i++
+
+		case '\n':
+			c.pendingWSP = false
+			if !c.prevCR {
+				c.pendingLineBreaks = append(c.pendingLineBreaks, '\r')
 			}
-			if len(c.wspBuf) > 0 {
-				canonical = append(canonical, ' ')
-				c.wspBuf = nil
+			c.pendingLineBreaks = append(c.pendingLineBreaks, '\n')
+			c.prevCR = false
+			i++
+
+		default:
+			c.prevCR = false
+			c.written = true
+
+			if len(c.pendingLineBreaks) > 0 {
+				c.out = append(c.out, c.pendingLineBreaks...)
+				c.pendingLineBreaks = c.pendingLineBreaks[:0]
+			}
+			if c.pendingWSP {
+				c.out = append(c.out, ' ')
+				c.pendingWSP = false
 			}
 
-			canonical = append(canonical, ch)
+			// Copy this run of ordinary bytes in one step.
+			j := i + 1
+			for j < len(b) && !isRelaxedBodySpecial[b[j]] {
+				j++
+			}
+			c.out = append(c.out, b[i:j]...)
+			i = j
+
+			if len(c.out) >= relaxedBodyBufferSize {
+				if err := c.flush(); err != nil {
+					return 0, err
+				}
+			}
 		}
 	}
 
-	if !c.written && len(canonical) > 0 {
-		c.written = true
+	if err := c.flush(); err != nil {
+		return 0, err
 	}
 
-	_, err := c.w.Write(canonical)
-	return written, err
+	return len(b), nil
+}
+
+func (c *relaxedBodyCanonicalizer) flush() error {
+	if len(c.out) == 0 {
+		return nil
+	}
+
+	_, err := c.w.Write(c.out)
+	c.out = c.out[:0]
+	return err
 }
 
 func (c *relaxedBodyCanonicalizer) Close() error {
